@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 export MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
-obj-$(CONFIG_MTK_BLOCK_IO_TRACER) += blocktag/
+# obj-$(CONFIG_MTK_BLOCK_IO_TRACER) += blocktag/
 obj-$(CONFIG_MTK_SLBC) += slbc/
 obj-$(CONFIG_MTK_CM_MGR) += cm_mgr/
 obj-$(CONFIG_MTK_QOS_FRAMEWORK) += qos/
@@ -71,7 +71,7 @@ obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += scp/
 obj-$(CONFIG_MTK_TINYSYS_VCP_SUPPORT) += vcp/
 obj-$(CONFIG_MTK_SENSOR_SUPPORT) += sensor/
 obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += elliptic/
-obj-$(CONFIG_MTK_DRAM_LOG_STORE) += log_store/
+# obj-$(CONFIG_MTK_DRAM_LOG_STORE) += log_store/
 obj-$(CONFIG_INTERCONNECT_MTK_EXTENSION) += mtk-interconnect/
 obj-$(CONFIG_MTK_MMDVFS) += mmdvfs/
 obj-$(CONFIG_MTK_MMINFRA) += mminfra/
