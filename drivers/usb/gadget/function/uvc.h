@@ -158,6 +158,7 @@ struct uvc_device {
 	unsigned int control_intf;
 	struct usb_ep *control_ep;
 	struct usb_request *control_req;
+	struct usb_ctrlrequest control_setup;
 	void *control_buf;
 
 	unsigned int streaming_intf;
@@ -165,6 +166,7 @@ struct uvc_device {
 	/* Events */
 	unsigned int event_length;
 	unsigned int event_setup_out : 1;
+	unsigned int event_status : 1;
 };
 
 static inline struct uvc_device *to_uvc(struct usb_function *f)

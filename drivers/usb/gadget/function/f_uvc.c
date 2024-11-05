@@ -208,8 +208,25 @@ uvc_function_ep0_complete(struct usb_ep *ep, struct usb_request *req)
 	struct v4l2_event v4l2_event;
 	struct uvc_event *uvc_event = (void *)&v4l2_event.u.data;
 
+	if (uvc->event_status) {
+		uvc->event_status = 0;
+		return;
+	}
+
 	if (uvc->event_setup_out) {
-		uvc->event_setup_out = 0;
+		struct usb_ctrlrequest *mctrl = &uvc_event->req;
+		memset(&v4l2_event, 0, sizeof(v4l2_event));
+		v4l2_event.type = UVC_EVENT_SETUP;
+		memcpy(&uvc_event->req, &uvc->control_setup, sizeof(uvc_event->req));
+		/* check for the interface number, fixup the interface number in
+		 * the ctrl request so the userspace doesn't have to bother with
+		 * offset and configfs parsing
+		 */
+		if ((le16_to_cpu(mctrl->wIndex) & 0xff) == uvc->streaming_intf)
+			mctrl->wIndex = cpu_to_le16(UVC_STRING_STREAMING_IDX);
+		else
+			mctrl->wIndex &= ~cpu_to_le16(0xff);
+		v4l2_event_queue(&uvc->vdev, &v4l2_event);
 
 		memset(&v4l2_event, 0, sizeof(v4l2_event));
 		v4l2_event.type = UVC_EVENT_DATA;
@@ -224,10 +241,6 @@ static int
 uvc_function_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 {
 	struct uvc_device *uvc = to_uvc(f);
-	struct v4l2_event v4l2_event;
-	struct uvc_event *uvc_event = (void *)&v4l2_event.u.data;
-	unsigned int interface = le16_to_cpu(ctrl->wIndex) & 0xff;
-	struct usb_ctrlrequest *mctrl;
 
 	if ((ctrl->bRequestType & USB_TYPE_MASK) != USB_TYPE_CLASS) {
 		uvcg_info(f, "invalid request type\n");
@@ -244,21 +257,42 @@ uvc_function_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	 */
 	uvc->event_setup_out = !(ctrl->bRequestType & USB_DIR_IN);
 	uvc->event_length = le16_to_cpu(ctrl->wLength);
+	memcpy(&uvc->control_setup, ctrl, sizeof(uvc->control_setup));
 
-	memset(&v4l2_event, 0, sizeof(v4l2_event));
-	v4l2_event.type = UVC_EVENT_SETUP;
-	memcpy(&uvc_event->req, ctrl, sizeof(uvc_event->req));
+	uvc->event_status = 0;
 
-	/* check for the interface number, fixup the interface number in
-	 * the ctrl request so the userspace doesn't have to bother with
-	 * offset and configfs parsing
-	 */
-	mctrl = &uvc_event->req;
-	mctrl->wIndex &= ~cpu_to_le16(0xff);
-	if (interface == uvc->streaming_intf)
-		mctrl->wIndex = cpu_to_le16(UVC_STRING_STREAMING_IDX);
+	if (uvc->event_setup_out) {
+		struct usb_request *req = uvc->control_req;
 
-	v4l2_event_queue(&uvc->vdev, &v4l2_event);
+		/*
+		 * Enqueue the request immediately for control OUT as the
+		 * host will start the data stage straight away.
+		 */
+		req->length = uvc->event_length;
+		req->zero = 0;
+		req->explicit_status = 1;
+		usb_ep_queue(f->config->cdev->gadget->ep0, req, GFP_KERNEL);
+	} else {
+		struct v4l2_event v4l2_event;
+		struct uvc_event *uvc_event = (void *)&v4l2_event.u.data;
+		unsigned int interface = le16_to_cpu(ctrl->wIndex) & 0xff;
+		struct usb_ctrlrequest *mctrl;
+
+		memset(&v4l2_event, 0, sizeof(v4l2_event));
+		v4l2_event.type = UVC_EVENT_SETUP;
+		memcpy(&uvc_event->req, ctrl, sizeof(uvc_event->req));
+
+		/* check for the interface number, fixup the interface number in
+		 * the ctrl request so the userspace doesn't have to bother with
+		 * offset and configfs parsing
+		 */
+		mctrl = &uvc_event->req;
+		mctrl->wIndex &= ~cpu_to_le16(0xff);
+		if (interface == uvc->streaming_intf)
+			mctrl->wIndex = cpu_to_le16(UVC_STRING_STREAMING_IDX);
+
+		v4l2_event_queue(&uvc->vdev, &v4l2_event);
+	}
 
 	return 0;
 }
